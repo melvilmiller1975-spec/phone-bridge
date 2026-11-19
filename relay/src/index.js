@@ -66,8 +66,13 @@ export class PhoneRelay extends DurableObject {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
+  // Newest phone socket that is still open. A dropped or replaced connection can stay in
+  // the list for a while in a closing state, and sending on it throws.
+  openPhones() {
+    return this.ctx.getWebSockets("phone").filter((w) => w.readyState === 1).reverse();
+  }
   phone() {
-    return this.ctx.getWebSockets("phone")[0] || null;
+    return this.openPhones()[0] || null;
   }
 
   async fetch(req) {
@@ -84,6 +89,8 @@ export class PhoneRelay extends DurableObject {
     if (path === "/status") {
       return json({
         phone_connected: !!this.phone(),
+        phone_sockets: this.ctx.getWebSockets("phone").map((w) => w.readyState),
+        last_send_error: (await this.ctx.storage.get("lastSendError")) || null,
         connected_at: (await this.ctx.storage.get("connectedAt")) || null,
         tools: ((await this.ctx.storage.get("tools")) || []).map((t) => t.name),
       });
@@ -129,11 +136,16 @@ export class PhoneRelay extends DurableObject {
       }, CALL_TIMEOUT_MS);
       this.pending.set(rid, (r) => { clearTimeout(timer); resolve(r); });
     });
-    try {
-      ws.send(JSON.stringify({ type: "call", rid, name: String(params.name || ""), arguments: params.arguments || {} }));
-    } catch {
-      this.pending.get(rid)?.(fail("Phone connection dropped."));
+    const frame = JSON.stringify({ type: "call", rid, name: String(params.name || ""), arguments: params.arguments || {} });
+    let sent = false;
+    for (const w of this.openPhones()) {
+      try { w.send(frame); sent = true; break; }
+      catch (e) {
+        await this.ctx.storage.put("lastSendError", { at: Date.now(), error: String(e && e.message || e).slice(0, 200) });
+        try { w.close(1011, "send failed"); } catch {}
+      }
     }
+    if (!sent) this.pending.get(rid)?.(fail("Phone connection dropped."));
     return answer;
   }
 
