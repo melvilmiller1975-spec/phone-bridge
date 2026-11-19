@@ -1,0 +1,18 @@
+# phone-bridge relay: a Cloudflare Worker (free plan) that gives Sesame one permanent link.
+# The phone dials out to /phone over a WebSocket; Sesame posts MCP JSON to /mcp?k=SESAME_KEY.
+# Secrets (never in this file): SESAME_KEY and PHONE_KEY, set with `npx wrangler secret put`.
+name = "phone-bridge-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[observability]
+enabled = false
+
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "PhoneRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PhoneRelay"]
