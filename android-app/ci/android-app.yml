@@ -1,0 +1,38 @@
+name: Charlie Android app
+
+on:
+  push:
+    paths: ["android-app/**", "relay/**", ".github/workflows/android-app.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: android-actions/setup-android@v3
+      - name: Start a local copy of the relay with test keys
+        working-directory: relay
+        run: |
+          npm ci
+          printf 'PHONE_KEY=test-phone-key-0123456789abcdef\nSESAME_KEY=test-sesame-key-0123456789abcdef\n' > .dev.vars
+          nohup npx wrangler dev --port 8799 --ip 127.0.0.1 > /tmp/relay.log 2>&1 &
+          for i in $(seq 1 60); do curl -s http://127.0.0.1:8799/status > /dev/null && break; sleep 1; done
+      - name: Unit tests, relay tests, lint and build
+        env:
+          RELAY_TEST_URL: http://127.0.0.1:8799
+        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: charlie-debug-apk
+          path: android-app/app/build/outputs/apk/debug/app-debug.apk

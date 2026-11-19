@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screen_service_description">Lets your Sesame assistant read the screen and tap in apps you approved, only when you ask it to and only while screen control is switched on in the Charlie app. It never reads or taps Charlie, Settings, the lock screen or permission screens, skips password fields, and asks you first before buttons like Send, Pay, Buy, Delete or Call. Turn it off here or with Stop screen control on Charlie\'s notification.</string>
+</resources>
